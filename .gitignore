@@ -159,4 +159,7 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-data/
+data/multimodal_search
+data/paper_similarity
+data/simple_search/*
+!data/simple_search/colmap_docs
