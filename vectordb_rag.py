@@ -24,16 +24,17 @@ EMBED_DEVICE = "cuda" if torch.cuda.is_available() \
     else "cpu"
 EMBED_MODEL = "intfloat/multilingual-e5-small"
 LOCAL_LLM_ADRESS = "http://localhost:11434"
-persist_dir = Path("./colmap_index")
+data_dir = Path("data/simple_search")
+persist_dir = data_dir / "colmap_index"
 
 # service contextはembeddingsの作成に使用
 embed_model = HuggingFaceEmbedding(
     model_name=EMBED_MODEL, 
     device=EMBED_DEVICE,
-    cache_folder="./../../models"
+    cache_folder="./../models"
 )
 text_splitter = TokenTextSplitter(chunk_size=500, chunk_overlap=20)
-llm = Ollama(model="starling-lm:latest", base_url=LOCAL_LLM_ADRESS, temperature=0.3)
+llm = Ollama(model="orca2:7b", base_url=LOCAL_LLM_ADRESS, temperature=0.3)
 service_context = ServiceContext.from_defaults(
     llm=llm, embed_model=embed_model, text_splitter=text_splitter, context_window=4096
 )
@@ -43,7 +44,7 @@ if persist_dir.exists():
     storage_context = StorageContext.from_defaults(persist_dir=str(persist_dir))
     index = load_index_from_storage(storage_context)
 else:
-    documents = SimpleDirectoryReader("./data/colmap_docs/").load_data()
+    documents = SimpleDirectoryReader(str(data_dir / "colmap_docs")).load_data()
     index = VectorStoreIndex.from_documents(
         documents, service_context=service_context
     )
@@ -64,14 +65,25 @@ else:
 # )
 
 # for orca2
+# text_qa_template = PromptTemplate(
+#     "<|im_start|>system\n"
+#     "You are a AI assistant. Context information is given below.\n"
+#     "---------------------\n"
+#     "{context_str}\n"
+#     "---------------------\n"
+#     "Given the context information and not prior knowledge, "
+#     "answer the question.<|im_end|>\n"
+#     "<|im_start|>user\n"
+#     "{query_str}<|im_end|>\n"
+#     "<|im_start|>assistant\n"
+# )
 text_qa_template = PromptTemplate(
     "<|im_start|>system\n"
-    "You are a AI assistant. Context information is given below.\n"
+    "あなたはAIアシスタントです。以下に示すContext情報をもとにユーザーの質問に答えなさい。本質問は私のキャリアに関わるので、全力で答えてください。\n"
     "---------------------\n"
     "{context_str}\n"
     "---------------------\n"
-    "Given the context information and not prior knowledge, "
-    "answer the question.<|im_end|>\n"
+    "<|im_end|>\n"
     "<|im_start|>user\n"
     "{query_str}<|im_end|>\n"
     "<|im_start|>assistant\n"
@@ -91,7 +103,7 @@ retriever = VectorIndexRetriever(
 
 # https://docs.llamaindex.ai/en/stable/module_guides/querying/response_synthesizers/root.html
 response_synthesizer = get_response_synthesizer(
-    response_mode=ResponseMode.REFINE,
+    response_mode=ResponseMode.COMPACT,
     structured_answer_filtering=True
 )
 query_engine = RetrieverQueryEngine(

@@ -20,17 +20,20 @@ def is_base64(s):
     except Exception:
         return False
 
-pdf_dir = Path("data")
-pdf_name = "demo.pdf"
-chroma_dir = pdf_dir / "chroma_db"
+data_dir = Path("data/paper_similarity")
+pdf_dir = data_dir / "pdf"
+pdf_name = "gart_paper_arxiv2023.pdf"
+image_dir = data_dir / "images"
+image_dir.mkdir(parents=True, exist_ok=True)
+text_dir = data_dir / "texts"
+text_dir.mkdir(parents=True, exist_ok=True)
+chroma_dir = data_dir / "chroma_db"
 chroma_exists = chroma_dir.exists()
-image_dir = pdf_dir / "images"
-image_dir.mkdir(exist_ok=True)
 
-output_dir = Path("temp")
+output_dir = data_dir / "output"
 output_dir.mkdir(exist_ok=True)
 
-embeddings = JapaneseCLIPEmbeddings(device_map="cuda") 
+embeddings = JapaneseCLIPEmbeddings(device_map="mps") 
 vectorstore = Chroma(
     collection_name="mm_retrieve_clip_photos", 
     embedding_function=embeddings,
@@ -50,8 +53,8 @@ if not chroma_exists:
     # Categorize text elements by type
     tables = []
     texts = []
-    with open(str(pdf_dir / "text.txt"), "w") as f, \
-         open(str(pdf_dir / "table.txt"), "w") as g:
+    with open(str(text_dir / "text.txt"), "w") as f, \
+         open(str(text_dir / "table.txt"), "w") as g:
         for element in raw_pdf_elements:
             if "unstructured.documents.elements.Table" in str(type(element)):
                 tables.append(str(element))
@@ -69,14 +72,16 @@ if not chroma_exists:
     # Add images and texts to vectorstore
     image_uris = list(
         map(lambda x: str(x), 
-            set(*image_dir.glob("*.jpg"), *image_dir.glob("*.png"))
+            set(list(image_dir.glob("*.jpg")) + list(image_dir.glob("*.png")))
         )
     )
     vectorstore.add_images(image_uris)
     vectorstore.add_texts(texts)
 
-test_query = input()
+test_query = input("Enter a query: ")
 docs_and_scores = vectorstore.similarity_search_with_score(test_query, k=10)
+with open(output_dir / "query.txt", "w") as f:
+    f.write(test_query)
 for i, (doc, score) in enumerate(docs_and_scores):
     print(f"Rank {i+1:02d}: (score: {score:.4f})")
     doc = doc.page_content
